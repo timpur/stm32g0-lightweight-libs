@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <IFloat.hpp>
 #include <TinyWire.hpp>
 
 #define SHT4x_I2C_ADDR 0x44
@@ -38,7 +39,7 @@ class SHT4x {
         return true;
     }
 
-    bool readTempHumidity(uint16_t *temperature, uint16_t *humidity, uint8_t cmd = SHT4x_REG_NOHEAT_HIGHPRECISION) {
+    bool readTempHumidity(ifloat_t *temperature, ifloat_t *humidity, uint8_t cmd = SHT4x_REG_NOHEAT_HIGHPRECISION) {
         uint8_t buff[6];
         uint16_t delay;
         switch (cmd) {
@@ -70,10 +71,10 @@ class SHT4x {
         if (buff[2] != crc8(buff, 2) || buff[5] != crc8(&buff[3], 2))
             return false;
 
-        uint16_t t_ticks = (uint16_t)buff[0] << 8 + (uint16_t)buff[1];
-        uint16_t rh_ticks = (uint16_t)buff[3] << 8 + (uint16_t)buff[4];
-        float _temperature = -45 + 175 * t_ticks / 65535;
-        float _humidity = -6 + 125 * rh_ticks / 65535;
+        ifloat_t t_ticks = (uint16_t)buff[0] << 8 + (uint16_t)buff[1];
+        ifloat_t rh_ticks = (uint16_t)buff[3] << 8 + (uint16_t)buff[4];
+        *temperature = -45 + 175 * t_ticks / 65535;
+        *humidity = -6 + 125 * rh_ticks / 65535;
 
         return true;
     }
