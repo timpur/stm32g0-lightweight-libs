@@ -1,0 +1,28 @@
+# STM32G0 LightWeight Libs
+
+This repo is intended to be checked out as the lib dir in your platform io project.
+
+These libs have be highly cut or optimised for STM32 Arduino on small flash storage.
+
+## Libs:
+
+### TinyWire
+
+This lib is meant to replace Wire from the core as a cut impmentation to support the bare min for I2C coms.
+
+### IFloat
+
+Since the STM32G0 Arm M0+ cores dont have an fpu, relying on c software float maths consume a huge amount of ram.
+
+This the `I` in `IFloat` means integer based maths.
+
+This is not a 1:1 replacement for floats and is a hack really.
+
+The idea here is to have a presision like 2 dp expressed as 10^exponent. So your dp resolution is a fixed.
+
+### IC2 Libs
+
+The libs are not complete and do not offer configuring the sensor entirely and have fixed defaults by defalt for size reasons.
+
+- APDS9930: Bare min to get the Proximity data
+- SHT4x: Bare min to get the Temp and Humidity data
