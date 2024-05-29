@@ -1,11 +1,17 @@
 #pragma once
 
-#include <Arduino.h>
+// #include <Arduino.h>
 
-extern "C" {
-constexpr int iabs(int v);
-constexpr int ipow(int x, int n);
-}
+#include <inttypes.h>
+#include <stdlib.h>
+
+#ifdef UNITY
+#include <string>
+#endif
+
+static constexpr int iabs(int v);
+static constexpr int ipow(int x, int n);
+static constexpr int ilog(int x, int b);
 
 #define IFLOAT_DEFAULT_EXPONENT 2
 
@@ -27,15 +33,24 @@ struct IFloat {
     }
 
   public:
+    IFloat(IFloat &val) {
+        _val = val._val;
+        _exp = val._exp;
+    }
+
     IFloat(const int val = 0, const uint8_t val_exp = 0, const uint8_t exp = IFLOAT_DEFAULT_EXPONENT) {
         _exp = exp;
         if (val != 0)
             _val = _normalise(val, val_exp);
     }
 
-    unsigned int intValue() { return _val / ipow(10, _exp); }
-    unsigned int decimanValue() { return _val % ipow(10, _exp); }
+    int rawValue() { return _val; }
+    int intValue() { return _val / ipow(10, _exp); }
+    // Decimal value needs to be sifter by the exponent. eg 1 with exp 2 -> .01
+    uint32_t decimanValue() { return _val % ipow(10, _exp); }
+    uint8_t decimalExponent() { return _exp; }
 
+#ifdef HAL_UART_MODULE_ENABLED
     void print(Print &f) {
         unsigned int i, d;
         i = intValue();
@@ -43,11 +58,29 @@ struct IFloat {
         f.print(i);
         if (_exp > 0) {
             f.print(F("."));
-            if (d < ipow(10, _exp - 1))
+            uint8_t shift = _exp - ilog(d, 10);
+            while (shift++ > 0)
                 f.print(F("0"));
             f.print(d);
         }
     }
+#endif
+
+#ifdef UNITY
+    std::string toString() {
+        std::string f;
+        unsigned int i, d;
+        i = intValue();
+        d = decimanValue();
+        f.append(std::to_string(i));
+        if (_exp > 0) {
+            f.append(".");
+            if (d < ipow(10, _exp - 1))
+                f.append("0");
+            f.append(std::to_string(d));
+        }
+    }
+#endif
 
     IFloat &add(int val, uint8_t exp = 0) {
         int v = _normalise(val, exp);
@@ -73,12 +106,12 @@ struct IFloat {
         return *this;
     }
 
-    IFloat operator=(int lhs) { return IFloat(lhs, 0); }
+    ifloat_t operator=(int lhs) { return IFloat(lhs, 0); }
 
-    ifloat_t &operator+(ifloat_t lhs) { return add(lhs._val, lhs._exp); }
-    ifloat_t &operator-(ifloat_t lhs) { return subtract(lhs._val, lhs._exp); }
-    ifloat_t &operator*(ifloat_t lhs) { return multiply(lhs._val, lhs._exp); }
-    ifloat_t &operator/(ifloat_t lhs) { return divide(lhs._val, lhs._exp); }
+    ifloat_t operator+(ifloat_t lhs) { return IFloat(*this).add(lhs._val, lhs._exp); }
+    ifloat_t operator-(ifloat_t lhs) { return IFloat(*this).subtract(lhs._val, lhs._exp); }
+    ifloat_t operator*(ifloat_t lhs) { return IFloat(*this).multiply(lhs._val, lhs._exp); }
+    ifloat_t operator/(ifloat_t lhs) { return IFloat(*this).divide(lhs._val, lhs._exp); }
 
     ifloat_t &operator+=(ifloat_t lhs) { return add(lhs._val, lhs._exp); }
     ifloat_t &operator-=(ifloat_t lhs) { return subtract(lhs._val, lhs._exp); }
@@ -86,26 +119,36 @@ struct IFloat {
     ifloat_t &operator/=(ifloat_t lhs) { return divide(lhs._val, lhs._exp); }
 };
 
-ifloat_t &operator+(ifloat_t &rhs, int lhs) { return rhs.add(lhs); }
-ifloat_t &operator+(int lhs, ifloat_t &rhs) { return rhs.add(lhs); }
-ifloat_t &operator-(ifloat_t &rhs, int lhs) { return rhs.subtract(lhs); }
-ifloat_t &operator-(int lhs, ifloat_t &rhs) { return rhs.subtract(lhs); }
-ifloat_t &operator*(ifloat_t rhs, int lhs) { return rhs.multiply(lhs); }
-ifloat_t &operator*(int lhs, ifloat_t &rhs) { return rhs.multiply(lhs); }
-ifloat_t &operator/(ifloat_t &rhs, int lhs) { return rhs.divide(lhs); }
-ifloat_t &operator/(int lhs, ifloat_t &rhs) { return rhs.divide(lhs); }
+ifloat_t operator+(ifloat_t rhs, int lhs) { return IFloat(rhs).add(lhs); }
+ifloat_t operator+(int rhs, ifloat_t lhs) { return IFloat(lhs).add(rhs); }
+ifloat_t operator-(ifloat_t rhs, int lhs) { return IFloat(rhs).subtract(lhs); }
+ifloat_t operator-(int rhs, ifloat_t lhs) { return IFloat(lhs).subtract(rhs); }
+ifloat_t operator*(ifloat_t rhs, int lhs) { return IFloat(rhs).multiply(lhs); }
+ifloat_t operator*(int rhs, ifloat_t lhs) { return IFloat(lhs).multiply(rhs); }
+ifloat_t operator/(ifloat_t rhs, int lhs) { return IFloat(rhs).divide(lhs); }
+ifloat_t operator/(int rhs, ifloat_t lhs) { return IFloat(lhs).divide(rhs); }
 
-extern "C" {
-constexpr int iabs(int v) {
+static constexpr int iabs(int v) {
     if (v < 0)
         return v * -1;
     return v;
 }
 
-constexpr int ipow(int x, int n) {
+static constexpr int ipow(int x, int n) {
     int number = 1;
     for (int i = 0; i < n; ++i)
         number *= x;
     return (number);
 }
+
+static constexpr int ilog(int x, int b) {
+    if (x < b)
+        return 0;
+    int i = 0;
+    do {
+        x /= b;
+        i++;
+    } while (x > 0);
+
+    return i;
 }
